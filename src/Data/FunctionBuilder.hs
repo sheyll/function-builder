@@ -1,16 +1,5 @@
 -- | This library allows you to build function builder libraries.
 --
--- This library is made to be useful especially for library authors, who want to provide
--- building blocks for users to build functions of varying parameters in a type safe way.
---
--- Imagine a library that let's user create nicely formatted strings, with the ability to
--- compose strings into larger strings and to allow the rendering of
--- all sorts of values, for example 'Double's, 'Bool's, or lists to strings.
---
--- __This library__ allows the author of such a library to easily add the
--- building blocks, allowing users to build __poly variadic functions__, i.e. with parameters
--- depending on the order and composition of these building blocks.
---
 -- Several 'FunctionBuilder' values sharing a common monoidal output type can be composed
 -- to a big 'FunctionBuilder' value, in order to build an __output function__ that
 -- has a flexible number and types of parameters depending, on the individual
@@ -18,20 +7,13 @@
 --
 -- 'FunctionBuilder's can also be composed via standard type classes.
 --
--- This module gives you ready-made  like 'Functor', 'Applicative', 'Semigroup', 'Monoid' or 'Category' instances;
+-- This module provides 'Functor', 'Applicative', 'Monad', 'Semigroup', 'Monoid' and
+-- 'Category' instances;
 --
--- The basic building blocks are 'toFunction', 'immediate' and 'addParameter'.
+-- The basic building blocks when generating a poly variadic function
+-- are 'immediate' and 'addParameter'.
 --
--- For example, you could use this library to build a string formatting
--- library, that allows users to compose arbitrary, /printf-style/ render __/functions/__
--- from reusable building blocks, such that they can be re-combined in order to make
--- get functions, that can be applied to parameters that fill place holders, like e.g.:
---
--- @
---     renderCpuTemp :: Int -> Float -> String
---     renderCpuTemp =
---       toFunction (render "CPU " . renderInt . render " Temperature: " . renderFloat)
--- @
+-- The output function is obtained from a 'FunctionBuilder' by __toFunction__.
 --
 module Data.FunctionBuilder where
 
