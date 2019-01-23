@@ -1,19 +1,36 @@
--- | This library allows you to build function builder libraries.
+-- | A builder for functions of variable parameters
 --
--- Several 'FunctionBuilder' values sharing a common monoidal output type can be composed
--- to a big 'FunctionBuilder' value, in order to build an __output function__ that
--- has a flexible number and types of parameters depending, on the individual
--- 'FunctionBuilder's used. This output function can be obtained by 'toFunction'.
+-- 'FunctionBuilder' values can be composed, and eventually /rendered/
+-- into a __function__ by 'toFunction'.
 --
--- 'FunctionBuilder's can also be composed via standard type classes.
+-- For example the composition of:
+--
+-- >
+-- > fb1 :: FunctionBuilder MyMonoid composeMe (Int -> composeMe)
+-- > fb1 = addParameter ...
+-- >
+-- > fb2 :: FunctionBuilder MyMonoid composeMe (String -> composeMe)
+-- > fb2 = addParameter ...
+-- >
+-- > fb3 :: FunctionBuilder MyMonoid composeMe (Bool -> composeMe)
+-- > fb3 = addParameter ...
+-- >
+-- > fb :: FunctionBuilder MyMonoid composeMe (Int -> String -> Bool -> composeMe)
+-- > fb = fb1 . fb2 . fb3
+-- >
+-- > f :: Int -> String -> Bool -> MyMonoid
+-- > f = toFunction fb123
+--
+-- 'FunctionBuilder's are composed via '(.)' from 'Category' and '<>' from 'Semigroup'.
 --
 -- This module provides 'Functor', 'Applicative', 'Monad', 'Semigroup', 'Monoid' and
 -- 'Category' instances;
 --
--- The basic building blocks when generating a poly variadic function
--- are 'immediate' and 'addParameter'.
+-- The smart-constructors 'immediate' and 'addParameter' create 'FunctionBuilder's
+-- that either write a hard coded constant to the output 'Monoid' or add a function
+-- that will be applied to an additional runtime parameter.
 --
--- The output function is obtained from a 'FunctionBuilder' by __toFunction__.
+-- Further /glue-code/ is provided to allow changing the underlying Monoid, see 'bind'.
 --
 module Data.FunctionBuilder where
 
@@ -25,50 +42,73 @@ import           Prelude                 hiding ( id
                                                 )
 import           Data.Tagged
 
--- | A function, that takes an accumulation function as paramater,
--- and returns a function that will have zero or more parameters and returns
--- an accumulated result: @(acc -> next)
+-- | A tricky newtype wrapper around a function that carries out a computation
+-- resulting in a monoidal output value that is passed to a continuation.
 --
--- A @FunctionBuilder acc next f@ is a function @(acc -> next) -> f@.
+-- A @FunctionBuilder acc next f@ is a newtype wrapper around functions of type
+-- @(acc -> next) -> f@.
 --
--- Type parameter:
+-- The immediate return value of the function is usually a function type,
+-- that takes zero or more arguments: @a_0 -> .. -> a_N -> next@.
 --
--- [@acc@] The final output value that gets build up by the
--- applying the resulting function build by the composed @FunctionBuilder@s.
--- If you were building a @printf@ style library, then @acc@ would
--- probably be 'String'.
+-- The @FunctionBuilder@s that 'addParameter' returns are polymorphic in @next@.
+-- And @next@ is the key for composition.
 --
--- [@next@] The @next@ parameter allows composing @FunctionBuilder@s, and the final output
--- will be a function @f@ with zero or more parameters of different type
--- resulting in an @acc@ value. Most 'FunctionBuilder's are parameteric in @next@ and
--- also have @next@ in a in @f_make_next@.
--- Also note that in @(acc -> next) -> f_make_next@ the @next@ is
--- the output of the continuation @acc -> next@ passed to the @FunctionBuilder@ function,
--- hence this /output/ is actually in /input/ from the perspective of the @FunctionBuilder@,
--- which makes a @FunctionBuilder@ 'Contravariant' in @next@.
+-- For example:
 --
--- [@f_make_next@] This is usually a function that returns @next@ or is
--- directly @next@, this is the resulting - seemingly /poly variadic/ -
--- __outout function__ composed through the composition of @FunctionBuilder@s, and
--- obtained by 'toFunction'.
+-- @
+-- fb1 :: FunctionBuilder MyMonoid next (Int -> next)
+-- fb1 = addParameter undefined
 --
--- It is required for the type-class instances allowing the
--- composition as 'Semigroup's or 'Monoid's or even 'Category'.
+-- fb2 :: FunctionBuilder MyMonoid next (String -> next)
+-- fb2 = addParameter undefined
 --
--- It is totaly valid to apply it to 'id', to get @f@, and behind @f@
--- typically lies a function of some parameters to @next@.
+-- newtype MyMonoid = MyMonoid () deriving (Semigroup, Monoid)
+-- @
 --
--- At the end of /the chain/ @next@ will be @acc@ and before that
--- the function that takes the next parameters and then returns out.
+-- When we /desugar/ with ghci:
 --
--- See `toFunction`.
+-- >>> :t (runFunctionBuilder fb1)
+-- (runFunctionBuilder fb1) :: (MyMonoid -> next) -> Int -> next
+--
+-- >>> :t (runFunctionBuilder fb2)
+-- (runFunctionBuilder fb2) :: (MyMonoid -> next) -> String -> next
+--
+-- Now when __composing__ @fb1@ and @fb2@ using '(.)' we get:
+--
+-- >>> :t (fb1 . fb2)
+-- (fb1 . fb2) :: FunctionBuilder MyMonoid a (Int -> String -> a)
+--
+--  And desugared:
+--
+-- >>> :t runFunctionBuilder (fb1 . fb2)
+-- runFunctionBuilder (fb1 . fb2) :: (MyMonoid -> next) -> Int -> String -> next
+--
+-- What happened during composition was that the @next@ in @fb1@ was used to insert
+-- into @Int -> next@ the @String -> other_next@ from @fb2@; such that this results in
+-- @Int -> (String -> other_next)@.
+-- (Note: For clarity I renamed the type local type parameter @next@ to @other_next@ from @fb2@)
+--
+-- Type parameters:
+--
+-- [@acc@] Type of monoidal value that is build from the parameters of the function
+-- returned by 'toFunction'.
+-- For example: In a @printf@ style formatting library @acc@ could be 'String'.
+--
+-- [@next@] The /trick-/ parameter that allows composing @FunctionBuilder@s.
+-- Also note that 'FunctionBuilder's are contravarient in this parameter;
+-- @next@ is the output of the continuation @acc -> next@, hence this is an
+-- /input/ from the perspective of the @FunctionBuilder@.
+--
+-- [@f_make_next@] This is usually a function type that returns @next@,
+-- this is the type of the output function returned by 'toFunction'.
 --
 -- Composition comes in two flavours:
 --
---     (1) By using `(.)` to add to the accumulator a value passed to an additional argument
+--     (1) By using '(.)' to add to the accumulator a value passed to an additional argument
 --     of the resulting output function.
 --
---     (2) By using `(<>)` to append a fixed value to the accumulator directly.
+--     (2) By using '(<>)' to append a fixed value to the accumulator directly.
 --
 -- For example:
 --
@@ -81,7 +121,7 @@ import           Data.Tagged
 -- is the __key__ to be able to __compose__ @FunctionBuilder@s. @add@ is
 -- parametric in @next@.
 -- .
--- And when we are done composing, we pass `id` to the @FunctionBuilder@, which
+-- And when we are done composing, we pass 'id' to the @FunctionBuilder@, which
 -- forces the the @next@ parameter to match the @acc@ type, and which
 -- would the make @add@ function look like this:
 --
@@ -168,7 +208,7 @@ toFunction = ($ id) . runFunctionBuilder
 -- >>> example
 -- "hello world"
 --
--- See the example in `toFunction`.
+-- See the example in 'toFunction'.
 immediate :: m -> FunctionBuilder m r r
 immediate m = FB { runFunctionBuilder = ($ m) }
 
@@ -195,7 +235,7 @@ immediate m = FB { runFunctionBuilder = ($ m) }
 -- >>> example True 0.33214
 -- "True0.33214"
 --
--- See the example in `toFunction`.
+-- See the example in 'toFunction'.
 addParameter :: (a -> m) -> FunctionBuilder m r (a -> r)
 addParameter f = FB { runFunctionBuilder = (. f) }
 
