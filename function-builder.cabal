@@ -1,5 +1,5 @@
 name:                function-builder
-version:             0.1.0.2
+version:             0.1.0.3
 synopsis:            Create poly variadic functions for monoidal results
 description:         Please see README.md
 homepage:            https://github.com/sheyll/function-builder#readme

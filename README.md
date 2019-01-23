@@ -54,3 +54,5 @@ Then the user of YourStringFormatter can write:
 * [polyToMonoid](http://hackage.haskell.org/package/polyToMonoid)
 
 * [HoleyMonoid](http://hackage.haskell.org/package/HoleyMonoid)
+
+* [formatting](formatting: Combinator-based type-safe formatting)
