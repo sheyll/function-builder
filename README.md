@@ -55,4 +55,4 @@ Then the user of YourStringFormatter can write:
 
 * [HoleyMonoid](http://hackage.haskell.org/package/HoleyMonoid)
 
-* [formatting](formatting: Combinator-based type-safe formatting)
+* [formatting](http://hackage.haskell.org/package/formatting)
