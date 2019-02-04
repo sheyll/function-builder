@@ -111,6 +111,7 @@ import           Data.Tagged
 -- @Int -> (String -> other_next)@.
 -- (Note: For clarity I renamed the type local type parameter @next@ to @other_next@ from @fb2@)
 --
+-- Also, there is the 'HasFunctionBuilder' type class for types that have function builders.
 newtype FunctionBuilder acc next f_make_next = FB {runFunctionBuilder :: (acc -> next) -> f_make_next }
 
 -- | Compose 'FunctionBuilder's such that the output function first takes all parameters
@@ -332,3 +333,13 @@ mapAccumulator into (FB f) = FB (\k -> f (k . into))
 -- Here the extra parameter @x@ is /pushed down/ into the @a@ of the @add@ 'FunctionBuilder'.
 mapNext :: (s -> r) -> FunctionBuilder m r a -> FunctionBuilder m s a
 mapNext outof (FB f) = FB (\k -> f (outof . k))
+
+
+-- | A type class for pairs of types that can be turned into 'FunctionBuilder's.
+--
+-- @since 0.1.1.0
+class HasFunctionBuilder m a where
+  -- | The
+  type ToFunction m a next
+  type ToFunction m a next = next
+  toFunctionBuilder :: a -> FunctionBuilder m (ToFunction m a next) next

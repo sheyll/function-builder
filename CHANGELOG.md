@@ -1,3 +1,7 @@
+# 0.1.1.0
+
+* Add a type class for function builders
+
 # 0.1.0.4
 
 * Fix reference to the 'formatting' library
