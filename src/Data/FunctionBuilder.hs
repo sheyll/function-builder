@@ -111,7 +111,7 @@ import           Data.Tagged
 -- @Int -> (String -> other_next)@.
 -- (Note: For clarity I renamed the type local type parameter @next@ to @other_next@ from @fb2@)
 --
--- Also, there is the 'HasFunctionBuilder' type class for types that have function builders.
+-- Also, there is the 'StaticContent' type class for types that have function builders.
 newtype FunctionBuilder acc next f_make_next = FB {runFunctionBuilder :: (acc -> next) -> f_make_next }
 
 -- | Compose 'FunctionBuilder's such that the output function first takes all parameters
@@ -216,36 +216,6 @@ toFunction = ($ id) . runFunctionBuilder
 immediate :: m -> FunctionBuilder m r r
 immediate m = FB { runFunctionBuilder = ($ m) }
 
--- | Create a 'FunctionBuilder' that adds an argument to the output function,
--- and converts that argument to a value that can be accumulated in the
--- resulting monoidal value.
---
--- This is a smart constructor for a 'FunctionBuilder'.
--- This functions is probably equal to:
---
--- > addParameter f = FB (\k x -> k (f x))
---
--- The generated builder can be passed to 'toFunction' since it is parametric
--- in its second type parameter.
---
--- Example:
---
--- When building a 'String' formatting 'FunctionBuilder'
--- the function to append a parameter that has a show instance could be:
---
--- > showing :: Show a => FunctionBuilder String r (a -> r)
--- > showing = addParameter show
---
--- > example :: (Show a, Show b) => a -> b -> String
--- > example = toFunction (showing . showing)
---
--- >>> example True 0.33214
--- "True0.33214"
---
--- See the example in 'toFunction'.
-addParameter :: (a -> m) -> FunctionBuilder m r (a -> r)
-addParameter f = FB { runFunctionBuilder = (. f) }
-
 -- ** Modifying Parameters of 'FunctionBuilder's
 
 -- | Take away a function parameter added with 'addParameter' by /pre -/ applying it to some
@@ -334,12 +304,120 @@ mapAccumulator into (FB f) = FB (\k -> f (k . into))
 mapNext :: (s -> r) -> FunctionBuilder m r a -> FunctionBuilder m s a
 mapNext outof (FB f) = FB (\k -> f (outof . k))
 
-
--- | A type class for pairs of types that can be turned into 'FunctionBuilder's.
+-- | Types @a@ that can be turned into 'FunctionBuilder's
+-- for a base monoid @m@.
 --
--- @since 0.1.1.0
+-- This is the abstract version of 'StaticContent' and 'DynamicContent'
+--
+-- @since 0.1.2.0
 class HasFunctionBuilder m a where
-  -- | The
-  type ToFunction m a next
-  type ToFunction m a next = next
-  toFunctionBuilder :: a -> FunctionBuilder m (ToFunction m a next) next
+  -- | Get the function type (if any) of the builder.
+  type ToFunction m a r
+  type ToFunction m a r = r
+  -- | Make a 'FunctionBuilder' from some value.
+  toFunctionBuilder :: a -> FunctionBuilder m r (ToFunction m a r)
+
+-- | Types @a@ that one parameter to a 'FunctionBuilder's for a base monoid @m@.
+--
+-- @since 0.1.2.0
+class ( HasFunctionBuilder w a
+      , ToFunction w a r ~ (b -> r)
+      )
+  => HasParameter w a b r
+
+-- | Types @a@ that can be turned into 'FunctionBuilder's
+-- for a base monoid @m@.
+--
+-- These type can provide a function to work on the internal monoid,
+--
+-- They can be constructed using 'immediate'.
+--
+-- Of course they can incorporate information __statically known at compile time__
+-- or via type class dictionaries (through singletons for instance).
+--
+-- For example:
+--
+-- > instance forall s . (KnownSymbol s) => StaticContent String (Proxy s) where
+-- >   addStaticContent = immediate (symbolVal (Proxy @s))
+--
+--
+-- @since 0.2.0.0
+class StaticContent m a where
+  -- | Return a 'FunctionBuilder' that can work on the underlying monoid.
+  addStaticContent :: a -> FunctionBuilder m next next
+
+-- | Create a 'FunctionBuilder' that /appends/ something to the (monoidal-) output value.
+--
+-- This is a smart constructor for a 'FunctionBuilder'.
+-- This functions is probably equal to:
+--
+-- > immediate x = FB (\k -> k x)
+--
+-- The generated builder can be passed to 'toFunction' since it is parametric
+-- in its second type parameter.
+--
+-- Example:
+--
+-- When building a 'String' formatting 'FunctionBuilder'
+-- the function to append a literal string could be:
+--
+-- > s :: String -> FunctionBuilder String a a
+-- > s = immediate
+--
+-- > c :: Char -> FunctionBuilder String a a
+-- > c = immediate . (:[])
+--
+-- > example :: String
+-- > example = toFunction (s "hello" . c ' ' . s "world")
+--
+-- >>> example
+-- "hello world"
+--
+-- See the example in 'toFunction'.
+instance StaticContent m m where
+  addStaticContent m = FB { runFunctionBuilder = ($ m) }
+
+-- | Types that have a 'FunctionBuilder' with a runtime @parameter@
+-- for a base monoid @m@.
+--
+-- For example:
+-- If an instance adds an @Int@ parameter, it will define this family instance:
+--
+-- > instance DynamicContent String (Proxy "%i") Int where
+-- >    addParameter _ = addParameter
+--
+-- @since 0.2.0.0
+class DynamicContent m a parameter | m a -> parameter where
+  -- | Create a 'FunctionBuilder' that adds a parameter to the output function,
+  -- and converts that argument to a value that can be accumulated in the
+  -- resulting monoidal value.
+  addParameter :: a -> FunctionBuilder m next (parameter -> next)
+
+
+-- | This instance is basically a smart constructor for a 'FunctionBuilder' with
+-- a parameter.
+--
+-- This functions is probably equal to:
+--
+-- > addParameter f = FB (\k x -> k (f x))
+--
+-- The generated builder can be passed to 'toFunction' since it is parametric
+-- in its second type parameter.
+--
+-- Example:
+--
+-- When building a 'String' formatting 'FunctionBuilder'
+-- the function to append a parameter that has a show instance could be:
+--
+-- > showing :: Show a => FunctionBuilder String r (a -> r)
+-- > showing = addParameter show
+--
+-- > example :: (Show a, Show b) => a -> b -> String
+-- > example = toFunction (showing . showing)
+--
+-- >>> example True 0.33214
+-- "True0.33214"
+--
+-- See the example in 'toFunction'.
+instance DynamicContent m (a -> m) a where
+  addParameter f = FB { runFunctionBuilder = (. f) }

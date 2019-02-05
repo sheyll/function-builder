@@ -1,3 +1,13 @@
+# 0.2.0.0
+
+* Clean up and renamings
+* Add a type class for types that dont add values
+  to the function builder outpout.
+
+# 0.1.2.0
+
+* Add a type class for function builders that add a parameter to the generated function
+
 # 0.1.1.0
 
 * Add a type class for function builders
