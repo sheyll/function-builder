@@ -56,3 +56,8 @@ Then the user of YourStringFormatter can write:
 * [HoleyMonoid](http://hackage.haskell.org/package/HoleyMonoid)
 
 * [formatting](http://hackage.haskell.org/package/formatting)
+
+* [category-printf](http://hackage.haskell.org/package/category-printf-0.1.1.0)
+ I learned from the author of that library Cale Gibbard in [this reddit comment](https://www.reddit.com/r/haskellquestions/comments/an2qoh/quantifiedconstraints_what_is_it_i_am_not_getting/efsla4g) that the `Format` type in that library (called `FunctionBuilder` in this library) is an alias for
+
+     "(...)the cokleisli category for the comonad of functions on a monoid, which is already in the comonad library"
