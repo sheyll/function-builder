@@ -34,7 +34,7 @@ get functions, that can be applied to parameters that fill place holders, like e
      str = immediate
 
      renderInt :: FunctionBuiler String next (Int -> next)
-     renderInt = addParameter show
+     renderInt = deferred show
 
      renderFloat :: FunctionBuiler String next (Float -> next)
      renderFloat = ...
